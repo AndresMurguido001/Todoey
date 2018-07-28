@@ -8,9 +8,10 @@
 
 import UIKit
 import RealmSwift
+import ChameleonFramework
 
+class CategoryViewControllerTableViewController: SwipeTableViewController {
 
-class CategoryViewControllerTableViewController: UITableViewController {
     
     let realm = try! Realm()
     
@@ -19,6 +20,19 @@ class CategoryViewControllerTableViewController: UITableViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         loadCategories()
+        tableView.rowHeight = 80.0
+        tableView.separatorStyle = .none
+    }
+    
+    override func viewWillAppear(_ animated: Bool) {
+        guard let navBar = navigationController?.navigationBar else {
+            fatalError("Navigation bar doesnt exist")
+        }
+        guard let navbarBG = navBar.barTintColor else {
+            print("Could Not get categories navbar bg color")
+            return
+        }
+        navBar.largeTitleTextAttributes = [NSAttributedStringKey.foregroundColor: ContrastColorOf(navbarBG, returnFlat: true)]
     }
     
     
@@ -35,15 +49,21 @@ class CategoryViewControllerTableViewController: UITableViewController {
     }
     override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         performSegue(withIdentifier: "goToItems", sender: self)
-        
+        tableView.deselectRow(at: indexPath, animated: true)
     }
     //MARK - TableView DataSource Methods
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
-        let cell = tableView.dequeueReusableCell(withIdentifier: "CategoryCell", for: indexPath)
-        cell.textLabel?.text = categories?[indexPath.row].name ?? "No Categories Created"
+        let cell = super.tableView(tableView, cellForRowAt: indexPath)
+        if let category = categories?[indexPath.row]{
+            cell.textLabel?.text = category.name
+            if let cellBgColor = UIColor(hexString: category.backgroundColor) {
+                cell.backgroundColor = cellBgColor
+                cell.textLabel?.textColor = ContrastColorOf(cellBgColor, returnFlat: true)
+            }
+        }
         return cell
     }
-    
+    //MARK - Data Manipulation Methods
     func saveCategory(category: Category){
         do {
             try realm.write {
@@ -61,9 +81,20 @@ class CategoryViewControllerTableViewController: UITableViewController {
         tableView.reloadData()
     }
     
+    //MARK - Delete Category from model
+    override func updateModel(at indexPath: IndexPath) {
+        if let deletedCategory = categories?[indexPath.row] {
+            do {
+                try realm.write {
+                    realm.delete(deletedCategory)
+                }
+            } catch {
+                print("Error Deleting Category: \(error)")
+            }
+        }
+    }
     
     
-    //MARK - Data Manipulation Methods
     @IBAction func addCategory(_ sender: UIBarButtonItem) {
         var textField = UITextField()
         let alert = UIAlertController(title: "Add Category", message: "", preferredStyle: .alert)
@@ -71,7 +102,7 @@ class CategoryViewControllerTableViewController: UITableViewController {
             
             let newCategory = Category()
             newCategory.name = textField.text!
-            
+            newCategory.backgroundColor = UIColor.randomFlat.hexValue()
             self.saveCategory(category: newCategory)
         }
         alert.addTextField { (alertTextField) in
@@ -81,5 +112,13 @@ class CategoryViewControllerTableViewController: UITableViewController {
         alert.addAction(action)
         present(alert, animated: true, completion: nil)
     }
+   
     
 }
+
+
+
+
+
+
+

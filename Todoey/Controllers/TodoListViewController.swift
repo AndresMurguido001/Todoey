@@ -8,8 +8,10 @@
 
 import UIKit
 import RealmSwift
+import ChameleonFramework
 
-class TodoListViewController: UITableViewController {
+
+class TodoListViewController: SwipeTableViewController {
     let realm = try! Realm()
     var todos: Results<Todo>?
     var selectedCategory : Category? {
@@ -17,24 +19,65 @@ class TodoListViewController: UITableViewController {
             loadItems()
         }
     }
+    @IBOutlet weak var searchBar: UISearchBar!
     
     override func viewDidLoad() {
         super.viewDidLoad()
+        tableView.rowHeight = 80.0
+        tableView.separatorStyle = .none
     }
+    //Navigation controller not existing on ViewDidLoad, must use other app lifecycle method viewWillAppear
+    //to wait for navigation bar
+    override func viewWillAppear(_ animated: Bool) {
+        title = selectedCategory?.name
+        
+        guard let hexColor = selectedCategory?.backgroundColor else {fatalError("Could not get Selected Categories background")}
+        updateNavbar(withHexCode: hexColor)
+        
+    }
+    
+    override func viewWillDisappear(_ animated: Bool) {
+        updateNavbar(withHexCode: "1D9BF6")
+//        navigationController?.navigationBar.barTintColor = originalColor
+//        navigationController?.navigationBar.tintColor = FlatGray()
+//        navigationController?.navigationBar.titleTextAttributes = [NSAttributedStringKey.foregroundColor:ContrastColorOf(FlatGray(), returnFlat: true)]
+    }
+    //MARK - set up navbar
+    func updateNavbar(withHexCode colorHex: String){
+        guard let navBar = navigationController?.navigationBar else { fatalError("Couldnt find navbar controller")}
+        
+        guard let navbarColor = UIColor(hexString: colorHex) else {fatalError("NavBar Color Not Set")}
+        
+        navBar.barTintColor = navbarColor
+        
+        searchBar.barTintColor = navbarColor
+        
+        navBar.tintColor = ContrastColorOf(navbarColor, returnFlat: true)
+        
+        navBar.largeTitleTextAttributes = [NSAttributedStringKey.foregroundColor:ContrastColorOf(navbarColor, returnFlat: true)]
+    }
+    
     //MARK - Tableview Datasource Methods
     override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
        return todos?.count ?? 1
     }
     
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
-        let cell = tableView.dequeueReusableCell(withIdentifier: "TodoItemCell", for: indexPath)
+        let cell = super.tableView(tableView, cellForRowAt: indexPath)
         if let item = todos?[indexPath.row] {
             cell.textLabel?.text = item.title
-            cell.accessoryType = item.done ? .checkmark : .none
-        } else {
-            cell.textLabel?.text = "You havent added any todos for \(selectedCategory!.name)"
+            
+            cell.accessoryType = (item.done) ? .checkmark : .none
+            if let color = UIColor(hexString: (selectedCategory!.backgroundColor))?.darken(byPercentage:
+                CGFloat(indexPath.row) / CGFloat((todos?.count)!)
+                ){
+                cell.backgroundColor = color
+                cell.textLabel?.textColor = ContrastColorOf(color, returnFlat: true)
+            }
         }
-        return cell;
+      
+        
+        return cell
     }
     //MARK - TableView Delegate Methods
     override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
@@ -82,10 +125,22 @@ class TodoListViewController: UITableViewController {
         present(alert, animated: true, completion: nil);
     }
   
-    
+    //MARK - Load Todos
     func loadItems() {
         todos = selectedCategory?.todos.sorted(byKeyPath: "title", ascending: true)
         tableView.reloadData()
+    }
+    //MARK - Delete Todos
+    override func updateModel(at indexPath: IndexPath) {
+        if let todoItem = todos?[indexPath.row]{
+            do {
+                try realm.write {
+                    realm.delete(todoItem)
+                }
+            } catch {
+                print("Could Not Delete Todo: \(error)")
+            }
+        }
     }
 
 }
